@@ -1,0 +1,111 @@
+initialize() {
+	initializeSLiMModelType("nonWF");
+	defineConstant("K1", 2000);	// carrying capacity p1
+	defineConstant("K2", 20);  // carrying capacity p2, p3
+	defineConstant("m", 0.01); // migration rate 
+	defineConstant("outF","slimTest" + asString(getSeed()) + ".txt"); //name file
+	initializeMutationType("m1", 0.5, "f", 0.0); //neutral mutation
+	m1.convertToSubstitution = T;
+	initializeMutationType("m2", 0.5, "e", -0.05); //ornamental mutation
+	m2.convertToSubstitution = F;
+	initializeMutationType("m3", 0.0, "e", -0.1); //deleterious mutation
+	m3.convertToSubstitution = F;
+	initializeGenomicElementType("g1", c(m1,m2,m3), c(1.0, 0.2, 0.5));
+	initializeGenomicElement(g1, 0, 99999);
+	initializeMutationRate(1e-7);
+	initializeRecombinationRate(1e-8);
+}
+
+
+//mate choice
+reproduction() {
+fixedMuts = sum(sim.substitutions.mutationType == m2);
+for (attempt in 1:5)
+ {
+mate = sample(subpop.individuals, 1, T, NULL);
+osize = fixedMuts * 2 + mate.countOfMutationsOfType(m2);
+if (runif(1) < log(osize + 1) * 0.1 + attempt * 0.01)
+subpop.addCrossed(individual, mate); 
+} 
+} 
+
+1 early() {
+	sim.addSubpop("p1", 30);
+	p1.individuals.age = rdunif(30, min=0, max=7);
+	sim.addSubpop("p2", 0);
+	p2.individuals.age = rdunif(0, min=0, max=7);
+	sim.addSubpop("p3", 0);
+	p3.individuals.age = rdunif(0, min=0, max=7);
+}
+
+//fitness scaling
+early() {
+	p1.fitnessScaling = K1 / p1.individualCount;
+	p2.fitnessScaling = K2 / p2.individualCount;
+	p3.fitnessScaling = K2 / p3.individualCount;
+}
+
+//p2 and p3 establishment
+1900:1910 early() {
+ nIndividuals = sum(sim.subpopulations.individualCount); 
+ nMigrants = rpois(1, nIndividuals * m); 
+ migrants = sample(p1.individuals, nMigrants);  
+ for (migrant in migrants) 
+ { 
+  do dest = sample(sim.subpopulations, 1); 
+  while (dest == migrant.subpopulation); 
+  dest.takeMigrants(migrant); 
+ }
+}
+
+//genetic rescue
+1990 early() {
+fixedMuts = sum(sim.substitutions.mutationType == m2);
+osize = fixedMuts * 2 + p1.individuals.countOfMutationsOfType(m2);
+to_move = sample(p1.individuals[osize+1 < mean(osize)], 5); //small ornament
+p2.takeMigrants(to_move);
+}
+1990 early() {
+p1.individuals.tagF = p1.individuals.countOfMutationsOfType(m2);
+osize = p1.individuals.tagF;  
+to_move = sample(p1.individuals[osize-1 > mean(osize)], 5); //big ornament
+p3.takeMigrants(to_move);
+}
+
+////file output////
+//post genetic rescue
+1985:2001 late()  {
+		print(sim.cycle +" output genereting to file " + outF + " " + date());
+		for(pop in p2){
+			fixedMuts = sum(sim.substitutions.mutationType == m2);
+			osize = fixedMuts * 2 + pop.individuals.countOfMutationsOfType(m2);
+			outLine = " " + mean(osize);
+			writeFile(outF,outLine,append=T);}
+		for(pop in p2){
+			neutral = sum(sim.substitutions.mutationType == m1);
+			outLine = " " + mean(neutral + pop.individuals.countOfMutationsOfType(m1));
+			writeFile(outF,outLine,append=T);}
+		for(pop in p2){
+		 	deleterious = pop.individuals.countOfMutationsOfType(m3);
+			outLine = " " + mean(deleterious);
+			writeFile(outF,outLine,append=T);}
+		for(pop in p2){
+			outLine = " " + mean(pop.cachedFitness(NULL));
+			writeFile(outF,outLine,append=T);}
+		for(pop in p3){
+			fixedMuts = sum(sim.substitutions.mutationType == m2);
+			osize = fixedMuts * 2 + pop.individuals.countOfMutationsOfType(m2);
+			outLine = " " + mean(osize);
+			writeFile(outF,outLine,append=T);}
+		for(pop in p3){
+			neutral = sum(sim.substitutions.mutationType == m1);
+			outLine = " " + mean(neutral + pop.individuals.countOfMutationsOfType(m1));
+			writeFile(outF,outLine,append=T);}
+		for(pop in p3){
+		 	deleterious = pop.individuals.countOfMutationsOfType(m3);
+			outLine = " " + mean(deleterious);
+			writeFile(outF,outLine,append=T);}
+		for(pop in p3){
+			outLine = " " + mean(pop.cachedFitness(NULL));
+			writeFile(outF,outLine,append=T);}
+	}
